@@ -1,0 +1,16 @@
+services:
+  claude-claw:
+    image: ghcr.io/navedr/claude-claw:latest
+    # build: .  # uncomment to build locally
+    container_name: claude-claw
+    restart: unless-stopped
+    ports:
+      - "3847:3847"
+    env_file: .env
+    volumes:
+      - ./store:/app/store
+      - ./workspace:/app/workspace
+      - ./memory.md:/app/memory.md
+      - ./auth:/home/node/.claude   # persist Claude CLI auth across restarts
+      # Optional: mount custom CLAUDE.md to skip template generation
+      # - ./CLAUDE.md:/app/CLAUDE.md:ro

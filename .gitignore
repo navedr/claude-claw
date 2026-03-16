@@ -1,0 +1,13 @@
+node_modules/
+dist/
+.env
+store/
+workspace/
+*.log
+*.pid
+
+# memory.md is intentionally NOT ignored — commit it to git.
+# It holds semantic memories the agent has learned and must survive across machines.
+.claude/settings.local.json
+.idea/
+auth/

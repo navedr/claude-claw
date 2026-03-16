@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.env
+store/
+workspace/
+.git/
+.idea/
+auth/
+*.md
+!CLAUDE.md.template
+proxy/

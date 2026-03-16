@@ -4,42 +4,47 @@ A Telegram bot that proxies messages to [Claude Code](https://claude.ai/code), g
 
 ## Quick Start (Docker)
 
-```bash
-# 1. Pull the image
-docker pull ghcr.io/navedr/claude-claw:latest
+### 1. Download config files
 
-# 2. Create your config
+```bash
 curl -O https://raw.githubusercontent.com/navedr/claude-claw/main/docker-compose.yml
 curl -O https://raw.githubusercontent.com/navedr/claude-claw/main/.env.example
 cp .env.example .env
-
-# 3. Configure (edit .env with your tokens)
-#    - Get TELEGRAM_BOT_TOKEN from @BotFather
-#    - Set ANTHROPIC_API_KEY or use CLI login (see Auth below)
-
-# 4. Start
-docker compose up -d
-
-# 5. Get your chat ID
-#    Send /chatid to your bot in Telegram, then add it to .env as ALLOWED_CHAT_ID
-#    Restart: docker compose restart
 ```
 
-## Authentication
+### 2. Set up Telegram bot
 
-Two ways to authenticate with Claude:
+1. Message [@BotFather](https://t.me/BotFather) on Telegram to create a bot
+2. Copy the bot token into `.env` as `TELEGRAM_BOT_TOKEN`
 
-### Option 1: API Key (simplest)
+### 3. Authenticate with Claude
+
+**Option A: API Key (simplest)**
 
 Set `ANTHROPIC_API_KEY` in your `.env` file. Get one at [console.anthropic.com](https://console.anthropic.com/settings/keys).
 
-### Option 2: CLI Login (no API key needed)
+**Option B: CLI Login (no API key needed)**
 
 ```bash
-docker compose run --rm claudeclaw login
+mkdir -p auth && touch auth/.claude.json
+docker compose run --rm claude-claw login
 ```
 
-A URL will appear -- open it in your browser to complete OAuth. Credentials persist in the `./auth/` directory across restarts.
+A URL will appear -- open it in your browser to complete OAuth. Credentials persist in `./auth/` across restarts.
+
+### 4. Get your chat ID
+
+```bash
+docker compose up -d
+```
+
+Send `/chatid` to your bot in Telegram. Add the ID to `.env` as `ALLOWED_CHAT_ID`, then restart:
+
+```bash
+docker compose restart
+```
+
+Your bot is now ready to use.
 
 ## Configuration
 
@@ -48,7 +53,7 @@ A URL will appear -- open it in your browser to complete OAuth. Credentials pers
 | `TELEGRAM_BOT_TOKEN` | Yes | Bot token from [@BotFather](https://t.me/BotFather) |
 | `ALLOWED_CHAT_ID` | Yes | Your Telegram chat ID (send `/chatid` to bot) |
 | `ANTHROPIC_API_KEY` | One of | API key for Claude |
-| CLI login | these | OAuth via `docker compose run --rm claudeclaw login` |
+| CLI login | these | OAuth via `docker compose run --rm claude-claw login` |
 | `ASSISTANT_NAME` | No | Bot's name (default: `Assistant`) |
 | `USER_NAME` | No | Your name (default: `User`) |
 | `GROQ_API_KEY` | No | Voice transcription via Groq Whisper |

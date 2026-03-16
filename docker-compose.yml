@@ -11,6 +11,7 @@ services:
       - ./store:/app/store
       - ./workspace:/app/workspace
       - ./memory.md:/app/memory.md
-      - ./auth:/home/node/.claude   # persist Claude CLI auth across restarts
+      - ./auth:/home/node/.claude          # persist CLI state across restarts
+      - ./auth/.claude.json:/home/node/.claude.json  # persist CLI auth
       # Optional: mount custom CLAUDE.md to skip template generation
       # - ./CLAUDE.md:/app/CLAUDE.md:ro

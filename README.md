@@ -46,14 +46,32 @@ docker compose restart
 
 Your bot is now ready to use.
 
+## Backends
+
+ClaudeClaw supports two backends, selected via `BACKEND_PROVIDER`:
+
+- `claude` (default) -- uses [Claude Code](https://claude.ai/code). Auth via `ANTHROPIC_API_KEY` or the `login` subcommand.
+- `codex` -- uses [OpenAI Codex CLI](https://github.com/openai/codex). Requires `OPENAI_API_KEY`. No `login` flow -- API key only. Set `CODEX_MODEL` to pick a specific model (e.g. `gpt-5-codex`); leave blank for the CLI default.
+
+### Skills (Codex)
+
+Codex doesn't natively support Claude's skills system, so ClaudeClaw bridges them via `AGENTS.md`. Before every Codex turn, the bot regenerates `/app/AGENTS.md` by concatenating:
+
+1. `CLAUDE.md` (personality)
+2. Every `*.md` file in `~/.claude/skills/` inside the container
+
+Codex auto-loads `AGENTS.md` from cwd, so your existing Claude skills work unchanged. Drop a new skill file into the mounted skills directory and it's picked up on the next message -- no restart.
+
 ## Configuration
 
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `TELEGRAM_BOT_TOKEN` | Yes | Bot token from [@BotFather](https://t.me/BotFather) |
 | `ALLOWED_CHAT_ID` | Yes | Your Telegram chat ID (send `/chatid` to bot) |
-| `ANTHROPIC_API_KEY` | One of | API key for Claude |
-| CLI login | these | OAuth via `docker compose run --rm claude-claw login` |
+| `BACKEND_PROVIDER` | No | `claude` (default) or `codex` |
+| `ANTHROPIC_API_KEY` | Claude | API key for Claude (or use `login` subcommand) |
+| `OPENAI_API_KEY` | Codex | API key for OpenAI Codex |
+| `CODEX_MODEL` | No | Codex model override (blank = CLI default) |
 | `ASSISTANT_NAME` | No | Bot's name (default: `Assistant`) |
 | `USER_NAME` | No | Your name (default: `User`) |
 | `GROQ_API_KEY` | No | Voice transcription via Groq Whisper |
@@ -111,7 +129,7 @@ npm run dev
 ## Architecture
 
 ```
-Telegram <-> grammy bot <-> Claude Code SDK <-> Claude API
+Telegram <-> grammy bot <-> Agent backend <-> Claude Code SDK / Codex CLI
                 |                  |
                 v                  v
            Dashboard (3847)   Sub-agents (parallel tasks)
@@ -119,6 +137,8 @@ Telegram <-> grammy bot <-> Claude Code SDK <-> Claude API
                 v
            SQLite (store/)
 ```
+
+Backend is selected at startup via `BACKEND_PROVIDER`. Both SDKs ship in the image.
 
 ## Customization
 

@@ -189,7 +189,7 @@ export function createBot(): Bot {
     await ctx.reply(`Your chat ID: ${ctx.chat?.id}`)
   })
 
-  bot.command('newchat', async (ctx) => {
+  bot.command(['newchat', 'newsession'], async (ctx) => {
     const chatId = String(ctx.chat?.id ?? '')
     if (!isAuthorised(chatId)) return
     clearSession(chatId)

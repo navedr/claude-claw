@@ -149,62 +149,49 @@ async function spawnCodex({ message, sessionId, onTyping, onSubTask, onUsage }: 
         }
       })
 
+      // Codex JSON event shapes (as of @openai/codex current):
+      //   { type: "thread.started", thread_id }
+      //   { type: "turn.started" }
+      //   { type: "item.started",   item: { id, type: "command_execution"|"agent_message"|..., ... } }
+      //   { type: "item.completed", item: { id, type, text?, command?, ... } }
+      //   { type: "turn.completed", usage: { input_tokens, output_tokens, cached_input_tokens } }
+      //   { type: "error" | "turn.failed", ... }
       function handleEvent(event: any) {
         if (!event || typeof event !== 'object') return
-
         const type: string | undefined = typeof event.type === 'string' ? event.type : undefined
 
-        const sid = pickString(event, ['session_id', 'conversation_id', 'rollout_id'])
-          ?? pickString(event.session, ['id', 'session_id'])
-          ?? pickString(event.conversation, ['id', 'conversation_id'])
-        if (sid) {
-          newSessionId = sid
+        if (type === 'thread.started') {
+          const tid = pickString(event, ['thread_id', 'session_id', 'conversation_id', 'rollout_id'])
+          if (tid) newSessionId = tid
+          return
         }
 
-        const description = pickString(event, ['description'])
-          ?? pickString(event.task, ['description', 'name'])
-          ?? pickString(event.tool, ['description', 'name'])
-        if (description && onSubTask) {
-          if (
-            type === 'task_started' ||
-            type === 'tool_started' ||
-            type === 'tool_call' ||
-            type === 'task' ||
-            event.task ||
-            event.tool ||
-            !type
-          ) {
-            onSubTask(description)
+        if (type === 'item.started' || type === 'item.completed') {
+          const item = event.item ?? {}
+          const itemType: string | undefined = typeof item.type === 'string' ? item.type : undefined
+
+          if (type === 'item.completed' && itemType === 'agent_message') {
+            const text = pickString(item, ['text', 'message', 'content'])
+            if (text) resultText = text
+            return
           }
-        }
 
-        const text = pickString(event, ['text', 'message', 'result', 'content'])
-          ?? pickString(event.message, ['text', 'content'])
-          ?? pickString(event.result, ['text', 'message', 'content'])
-        if (
-          text && (
-            type === 'agent_message' ||
-            type === 'assistant_message' ||
-            type === 'message' ||
-            type === 'result' ||
-            type === 'final' ||
-            type === 'completion'
-          )
-        ) {
-          resultText = text
-        }
-
-        const usageObj = event.usage ?? (type === 'token_count' || type === 'usage' ? event : undefined)
-        if (usageObj && onUsage) {
-          const input_tokens = pickNumber(usageObj, ['input_tokens', 'prompt_tokens', 'input'])
-          const output_tokens = pickNumber(usageObj, ['output_tokens', 'completion_tokens', 'output'])
-          if (input_tokens !== undefined || output_tokens !== undefined) {
-            onUsage({
-              input_tokens: input_tokens ?? 0,
-              output_tokens: output_tokens ?? 0,
-              cache_read_input_tokens: 0,
-            })
+          if (type === 'item.started' && onSubTask) {
+            const desc =
+              pickString(item, ['description', 'name', 'command', 'tool_name', 'text']) ??
+              (itemType ? `[${itemType}]` : undefined)
+            if (desc) onSubTask(desc.length > 120 ? desc.slice(0, 117) + '...' : desc)
           }
+          return
+        }
+
+        if (type === 'turn.completed' && event.usage && onUsage) {
+          const u = event.usage
+          const input_tokens = pickNumber(u, ['input_tokens', 'prompt_tokens', 'input']) ?? 0
+          const output_tokens = pickNumber(u, ['output_tokens', 'completion_tokens', 'output']) ?? 0
+          const cache_read_input_tokens = pickNumber(u, ['cached_input_tokens', 'cache_read_input_tokens']) ?? 0
+          onUsage({ input_tokens, output_tokens, cache_read_input_tokens })
+          return
         }
       }
     })

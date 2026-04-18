@@ -2,6 +2,7 @@
 set -e
 
 CLAUDE_CLI="node /app/node_modules/@anthropic-ai/claude-code/cli.js"
+CODEX_CLI="node /app/node_modules/@openai/codex/bin/codex.js"
 BACKEND_PROVIDER="${BACKEND_PROVIDER:-claude}"
 
 # ── Login mode ──
@@ -41,6 +42,15 @@ if [ "$BACKEND_PROVIDER" = "codex" ]; then
     echo "Get a key at https://platform.openai.com/api-keys"
     echo ""
     exit 1
+  fi
+
+  # Provision ~/.codex/auth.json from OPENAI_API_KEY (codex CLI no longer
+  # falls back to the env var at request time; it requires auth.json).
+  CODEX_AUTH="$HOME/.codex/auth.json"
+  mkdir -p "$HOME/.codex"
+  if [ ! -f "$CODEX_AUTH" ] || ! grep -q "$OPENAI_API_KEY" "$CODEX_AUTH" 2>/dev/null; then
+    echo "Provisioning codex auth.json from OPENAI_API_KEY..."
+    printf '%s' "$OPENAI_API_KEY" | $CODEX_CLI login --with-api-key >/dev/null
   fi
 else
   if [ -z "$ANTHROPIC_API_KEY" ] && [ ! -f "$HOME/.claude.json" ] && [ ! -f "$HOME/.claude/credentials.json" ]; then

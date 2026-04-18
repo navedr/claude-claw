@@ -59,7 +59,7 @@ export const codexBackend: AgentBackend = {
     //   resume: codex exec resume [--json] [-m MODEL] -- <SESSION_ID> <PROMPT>
     const args: string[] = [codexPath, 'exec']
     if (sessionId) args.push('resume')
-    args.push('--json')
+    args.push('--json', '--skip-git-repo-check')
     const model = process.env.CODEX_MODEL
     if (model) args.push('-m', model)
     args.push('--')

@@ -11,3 +11,4 @@ workspace/
 .claude/settings.local.json
 .idea/
 auth/
+.claude/

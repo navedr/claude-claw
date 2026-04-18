@@ -54,15 +54,17 @@ export const codexBackend: AgentBackend = {
 
     const codexPath = resolveCodexPath()
 
-    const args: string[] = [codexPath, 'exec', '--json']
-    if (sessionId) {
-      args.push('--resume', sessionId)
-    }
+    // codex CLI layout:
+    //   fresh:  codex exec [--json] [-m MODEL] -- <PROMPT>
+    //   resume: codex exec resume [--json] [-m MODEL] -- <SESSION_ID> <PROMPT>
+    const args: string[] = [codexPath, 'exec']
+    if (sessionId) args.push('resume')
+    args.push('--json')
     const model = process.env.CODEX_MODEL
-    if (model) {
-      args.push('-m', model)
-    }
-    args.push('--', message)
+    if (model) args.push('-m', model)
+    args.push('--')
+    if (sessionId) args.push(sessionId)
+    args.push(message)
 
     logger.info({ cwd: PROJECT_ROOT, cli: codexPath, sessionId, model }, 'codexBackend started')
 

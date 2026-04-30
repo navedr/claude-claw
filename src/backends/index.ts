@@ -1,8 +1,11 @@
-import { claudeBackend } from './claude.js'
-import { codexBackend } from './codex.js'
 import type { AgentBackend } from './types.js'
 
-export function getBackend(): AgentBackend {
+export async function getBackend(): Promise<AgentBackend> {
   const provider = (process.env.BACKEND_PROVIDER ?? 'claude').toLowerCase()
-  return provider === 'codex' ? codexBackend : claudeBackend
+  if (provider === 'codex') {
+    const { codexBackend } = await import('./codex.js')
+    return codexBackend
+  }
+  const { claudeBackend } = await import('./claude.js')
+  return claudeBackend
 }

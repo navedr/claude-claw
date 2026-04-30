@@ -1,7 +1,7 @@
 import { getBackend } from './backends/index.js'
-import type { AgentUsage } from './backends/types.js'
+import type { AgentBackend, AgentUsage } from './backends/types.js'
 
-const backend = getBackend()
+let _backend: AgentBackend | undefined
 
 export async function runAgent(
   message: string,
@@ -10,5 +10,6 @@ export async function runAgent(
   onSubTask?: (description: string) => void,
   onUsage?: (usage: AgentUsage) => void
 ): Promise<{ text: string | null; newSessionId?: string }> {
-  return backend.run({ message, sessionId, onTyping, onSubTask, onUsage })
+  if (!_backend) _backend = await getBackend()
+  return _backend.run({ message, sessionId, onTyping, onSubTask, onUsage })
 }

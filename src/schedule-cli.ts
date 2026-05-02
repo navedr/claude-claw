@@ -1,8 +1,6 @@
 import { randomUUID } from 'crypto'
 import { initDatabase, createScheduledTask, listScheduledTasks, deleteScheduledTask, pauseScheduledTask, resumeScheduledTask } from './db.js'
-import { computeNextRun } from './scheduler.js'
-import pkg from 'cron-parser'
-const { parseExpression } = pkg
+import cron from 'node-cron'
 
 initDatabase()
 
@@ -22,12 +20,7 @@ Commands:
 }
 
 function validateCron(expr: string): boolean {
-  try {
-    parseExpression(expr)
-    return true
-  } catch {
-    return false
-  }
+  return cron.validate(expr)
 }
 
 switch (cmd) {
@@ -42,12 +35,10 @@ switch (cmd) {
       process.exit(1)
     }
     const id = randomUUID().slice(0, 8)
-    const nextRun = computeNextRun(schedule)
-    createScheduledTask(id, chatId, prompt, schedule, nextRun)
+    createScheduledTask(id, chatId, prompt, schedule, 0)
     console.log(`Created task ${id}`)
     console.log(`  Prompt: ${prompt}`)
     console.log(`  Schedule: ${schedule}`)
-    console.log(`  Next run: ${new Date(nextRun * 1000).toLocaleString()}`)
     break
   }
 

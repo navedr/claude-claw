@@ -179,16 +179,16 @@ export function createScheduledTask(id: string, chatId: string, prompt: string, 
   ).run(id, chatId, prompt, schedule, nextRun, 'active', Date.now())
 }
 
-export function getDueTasks(): Array<{ id: string; chat_id: string; prompt: string; schedule: string }> {
+export function getActiveTasks(): Array<{ id: string; chat_id: string; prompt: string; schedule: string }> {
   return db.prepare(
-    "SELECT id, chat_id, prompt, schedule FROM scheduled_tasks WHERE status = 'active' AND next_run <= ?"
-  ).all(Math.floor(Date.now() / 1000)) as Array<{ id: string; chat_id: string; prompt: string; schedule: string }>
+    "SELECT id, chat_id, prompt, schedule FROM scheduled_tasks WHERE status = 'active'"
+  ).all() as Array<{ id: string; chat_id: string; prompt: string; schedule: string }>
 }
 
-export function updateTaskAfterRun(id: string, result: string, nextRun: number): void {
+export function updateTaskAfterRun(id: string, result: string): void {
   db.prepare(
-    'UPDATE scheduled_tasks SET last_run = ?, last_result = ?, next_run = ? WHERE id = ?'
-  ).run(Math.floor(Date.now() / 1000), result, nextRun, id)
+    'UPDATE scheduled_tasks SET last_run = ?, last_result = ? WHERE id = ?'
+  ).run(Math.floor(Date.now() / 1000), result, id)
 }
 
 export function listScheduledTasks(): Array<{ id: string; chat_id: string; prompt: string; schedule: string; status: string; next_run: number; last_run: number | null }> {

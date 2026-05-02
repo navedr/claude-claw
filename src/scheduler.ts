@@ -66,6 +66,11 @@ function syncTasks(send: Sender): void {
 
 export function initScheduler(send: Sender): void {
   syncTasks(send)
-  setInterval(() => syncTasks(send), 30_000)
-  logger.info(`Scheduler started (${jobs.size} jobs, syncing every 30s)`)
+
+  process.on('SIGUSR1', () => {
+    logger.info('SIGUSR1 received, syncing scheduled tasks')
+    syncTasks(send)
+  })
+
+  logger.info(`Scheduler started (${jobs.size} jobs, signal-driven sync)`)
 }

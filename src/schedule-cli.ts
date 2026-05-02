@@ -1,8 +1,22 @@
 import { randomUUID } from 'crypto'
+import { readFileSync } from 'fs'
+import path from 'path'
+import { fileURLToPath } from 'url'
 import { initDatabase, createScheduledTask, listScheduledTasks, deleteScheduledTask, pauseScheduledTask, resumeScheduledTask } from './db.js'
 import cron from 'node-cron'
 
 initDatabase()
+
+const STORE_DIR = path.join(path.dirname(path.dirname(fileURLToPath(import.meta.url))), 'store')
+
+function signalBot(): void {
+  try {
+    const pid = parseInt(readFileSync(path.join(STORE_DIR, 'claudeclaw.pid'), 'utf8').trim(), 10)
+    if (pid > 0) process.kill(pid, 'SIGUSR1')
+  } catch {
+    // bot not running or pid stale; sync will happen on next boot
+  }
+}
 
 const [, , cmd, ...args] = process.argv
 
@@ -36,6 +50,7 @@ switch (cmd) {
     }
     const id = randomUUID().slice(0, 8)
     createScheduledTask(id, chatId, prompt, schedule, 0)
+    signalBot()
     console.log(`Created task ${id}`)
     console.log(`  Prompt: ${prompt}`)
     console.log(`  Schedule: ${schedule}`)
@@ -65,6 +80,7 @@ switch (cmd) {
     const [id] = args
     if (!id) { console.error('Usage: delete <id>'); process.exit(1) }
     deleteScheduledTask(id)
+    signalBot()
     console.log(`Deleted task ${id}`)
     break
   }
@@ -73,6 +89,7 @@ switch (cmd) {
     const [id] = args
     if (!id) { console.error('Usage: pause <id>'); process.exit(1) }
     pauseScheduledTask(id)
+    signalBot()
     console.log(`Paused task ${id}`)
     break
   }
@@ -81,6 +98,7 @@ switch (cmd) {
     const [id] = args
     if (!id) { console.error('Usage: resume <id>'); process.exit(1) }
     resumeScheduledTask(id)
+    signalBot()
     console.log(`Resumed task ${id}`)
     break
   }

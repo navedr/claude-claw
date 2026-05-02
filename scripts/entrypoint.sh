@@ -54,9 +54,23 @@ if [ "$BACKEND_PROVIDER" = "codex" ]; then
     # Strip trailing slash from endpoint
     ENDPOINT="${AZURE_OPENAI_ENDPOINT%/}"
 
-    # Write config.toml with azure provider (preserves trust_level if present)
-    echo "Provisioning codex config.toml for Azure..."
-    cat > "$CODEX_CONFIG" <<TOML
+    # Write config.toml only if provider/endpoint/model changed
+    EXPECTED_BASE="${ENDPOINT}/openai/v1"
+    EXPECTED_MODEL="${CODEX_MODEL:-gpt-5-codex}"
+    NEEDS_UPDATE=0
+    if [ ! -f "$CODEX_CONFIG" ]; then
+      NEEDS_UPDATE=1
+    elif ! grep -q "model_provider = \"azure\"" "$CODEX_CONFIG" 2>/dev/null; then
+      NEEDS_UPDATE=1
+    elif ! grep -q "$EXPECTED_BASE" "$CODEX_CONFIG" 2>/dev/null; then
+      NEEDS_UPDATE=1
+    elif ! grep -q "^model = \"$EXPECTED_MODEL\"" "$CODEX_CONFIG" 2>/dev/null; then
+      NEEDS_UPDATE=1
+    fi
+
+    if [ "$NEEDS_UPDATE" = "1" ]; then
+      echo "Provisioning codex config.toml for Azure..."
+      cat > "$CODEX_CONFIG" <<TOML
 model = "${CODEX_MODEL:-gpt-5-codex}"
 model_provider = "azure"
 model_reasoning_effort = "medium"
@@ -70,6 +84,7 @@ wire_api = "responses"
 [projects."/app"]
 trust_level = "trusted"
 TOML
+    fi
 
   else
     # OpenAI direct: require API key

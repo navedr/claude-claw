@@ -51,7 +51,9 @@ Your bot is now ready to use.
 ClaudeClaw supports two backends, selected via `BACKEND_PROVIDER`:
 
 - `claude` (default) -- uses [Claude Code](https://claude.ai/code). Auth via `ANTHROPIC_API_KEY` or the `login` subcommand.
-- `codex` -- uses [OpenAI Codex CLI](https://github.com/openai/codex). Requires `OPENAI_API_KEY`. No `login` flow -- API key only. Set `CODEX_MODEL` to pick a specific model (e.g. `gpt-5-codex`); leave blank for the CLI default.
+- `codex` -- uses [OpenAI Codex CLI](https://github.com/openai/codex). Set `CODEX_MODEL` to pick a specific model; leave blank for CLI default. Two providers:
+  - `CODEX_PROVIDER=openai` (default) -- requires `OPENAI_API_KEY`.
+  - `CODEX_PROVIDER=azure` -- requires `AZURE_OPENAI_ENDPOINT` and `AZURE_OPENAI_API_KEY`. Generates `~/.codex/config.toml` automatically at boot.
 
 ### Skills (Codex)
 
@@ -70,8 +72,11 @@ Codex auto-loads `AGENTS.md` from cwd, so your existing Claude skills work uncha
 | `ALLOWED_CHAT_ID` | Yes | Your Telegram chat ID (send `/chatid` to bot) |
 | `BACKEND_PROVIDER` | No | `claude` (default) or `codex` |
 | `ANTHROPIC_API_KEY` | Claude | API key for Claude (or use `login` subcommand) |
-| `OPENAI_API_KEY` | Codex | API key for OpenAI Codex |
-| `CODEX_MODEL` | No | Codex model override (blank = CLI default) |
+| `CODEX_PROVIDER` | No | `openai` (default) or `azure` |
+| `OPENAI_API_KEY` | Codex/openai | API key for OpenAI Codex |
+| `AZURE_OPENAI_ENDPOINT` | Codex/azure | Azure resource URL (e.g. `https://myres.openai.azure.com`) |
+| `AZURE_OPENAI_API_KEY` | Codex/azure | API key from Azure Foundry deployment |
+| `CODEX_MODEL` | No | Codex model/deployment name (blank = CLI default) |
 | `ASSISTANT_NAME` | No | Bot's name (default: `Assistant`) |
 | `USER_NAME` | No | Your name (default: `User`) |
 | `GROQ_API_KEY` | No | Voice transcription via Groq Whisper |

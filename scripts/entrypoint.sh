@@ -4,6 +4,7 @@ set -e
 CLAUDE_CLI="node /app/node_modules/@anthropic-ai/claude-code/cli.js"
 CODEX_CLI="node /app/node_modules/@openai/codex/bin/codex.js"
 BACKEND_PROVIDER="${BACKEND_PROVIDER:-claude}"
+CODEX_PROVIDER="${CODEX_PROVIDER:-openai}"
 
 # ── Login mode ──
 # Usage: docker compose run --rm claudeclaw login
@@ -34,23 +35,60 @@ fi
 
 # ── Check auth ──
 if [ "$BACKEND_PROVIDER" = "codex" ]; then
-  if [ -z "$OPENAI_API_KEY" ]; then
-    echo ""
-    echo "ERROR: OPENAI_API_KEY is required when BACKEND_PROVIDER=codex."
-    echo ""
-    echo "Set OPENAI_API_KEY in your .env file."
-    echo "Get a key at https://platform.openai.com/api-keys"
-    echo ""
-    exit 1
-  fi
-
-  # Provision ~/.codex/auth.json from OPENAI_API_KEY (codex CLI no longer
-  # falls back to the env var at request time; it requires auth.json).
-  CODEX_AUTH="$HOME/.codex/auth.json"
   mkdir -p "$HOME/.codex"
-  if [ ! -f "$CODEX_AUTH" ] || ! grep -q "$OPENAI_API_KEY" "$CODEX_AUTH" 2>/dev/null; then
-    echo "Provisioning codex auth.json from OPENAI_API_KEY..."
-    printf '%s' "$OPENAI_API_KEY" | $CODEX_CLI login --with-api-key >/dev/null
+  CODEX_CONFIG="$HOME/.codex/config.toml"
+
+  if [ "$CODEX_PROVIDER" = "azure" ]; then
+    # Azure OpenAI: require endpoint + API key
+    if [ -z "$AZURE_OPENAI_API_KEY" ]; then
+      echo "ERROR: AZURE_OPENAI_API_KEY is required when CODEX_PROVIDER=azure."
+      echo "Set it in your .env file."
+      exit 1
+    fi
+    if [ -z "$AZURE_OPENAI_ENDPOINT" ]; then
+      echo "ERROR: AZURE_OPENAI_ENDPOINT is required when CODEX_PROVIDER=azure."
+      echo "Example: https://your-resource.openai.azure.com"
+      exit 1
+    fi
+
+    # Strip trailing slash from endpoint
+    ENDPOINT="${AZURE_OPENAI_ENDPOINT%/}"
+
+    # Write config.toml with azure provider (preserves trust_level if present)
+    echo "Provisioning codex config.toml for Azure..."
+    cat > "$CODEX_CONFIG" <<TOML
+model = "${CODEX_MODEL:-gpt-5-codex}"
+model_provider = "azure"
+model_reasoning_effort = "medium"
+
+[model_providers.azure]
+name = "Azure OpenAI"
+base_url = "${ENDPOINT}/openai/v1"
+env_key = "AZURE_OPENAI_API_KEY"
+wire_api = "responses"
+
+[projects."/app"]
+trust_level = "trusted"
+TOML
+
+  else
+    # OpenAI direct: require API key
+    if [ -z "$OPENAI_API_KEY" ]; then
+      echo ""
+      echo "ERROR: OPENAI_API_KEY is required when BACKEND_PROVIDER=codex."
+      echo ""
+      echo "Set OPENAI_API_KEY in your .env file."
+      echo "Get a key at https://platform.openai.com/api-keys"
+      echo ""
+      exit 1
+    fi
+
+    # Provision ~/.codex/auth.json from OPENAI_API_KEY
+    CODEX_AUTH="$HOME/.codex/auth.json"
+    if [ ! -f "$CODEX_AUTH" ] || ! grep -q "$OPENAI_API_KEY" "$CODEX_AUTH" 2>/dev/null; then
+      echo "Provisioning codex auth.json from OPENAI_API_KEY..."
+      printf '%s' "$OPENAI_API_KEY" | $CODEX_CLI login --with-api-key >/dev/null
+    fi
   fi
 else
   if [ -z "$ANTHROPIC_API_KEY" ] && [ ! -f "$HOME/.claude.json" ] && [ ! -f "$HOME/.claude/credentials.json" ]; then

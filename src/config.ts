@@ -29,6 +29,17 @@ if (!process.env.CODEX_MODEL && env['CODEX_MODEL']) {
   process.env.CODEX_MODEL = env['CODEX_MODEL']
 }
 
+// Bridge Azure OpenAI vars for Codex Azure provider
+if (!process.env.CODEX_PROVIDER && env['CODEX_PROVIDER']) {
+  process.env.CODEX_PROVIDER = env['CODEX_PROVIDER']
+}
+if (!process.env.AZURE_OPENAI_ENDPOINT && env['AZURE_OPENAI_ENDPOINT']) {
+  process.env.AZURE_OPENAI_ENDPOINT = env['AZURE_OPENAI_ENDPOINT']
+}
+if (!process.env.AZURE_OPENAI_API_KEY && env['AZURE_OPENAI_API_KEY']) {
+  process.env.AZURE_OPENAI_API_KEY = env['AZURE_OPENAI_API_KEY']
+}
+
 export const TELEGRAM_BOT_TOKEN = env['TELEGRAM_BOT_TOKEN'] ?? ''
 export const ALLOWED_CHAT_ID = env['ALLOWED_CHAT_ID'] ?? ''
 export const GROQ_API_KEY = env['GROQ_API_KEY'] ?? ''

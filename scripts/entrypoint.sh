@@ -87,7 +87,16 @@ TOML
     fi
 
   else
-    # OpenAI direct: require API key
+    # OpenAI direct: reset config.toml if it had azure settings from a previous run
+    if grep -q 'model_provider = "azure"' "$CODEX_CONFIG" 2>/dev/null; then
+      echo "Resetting codex config.toml for OpenAI..."
+      cat > "$CODEX_CONFIG" <<TOML
+[projects."/app"]
+trust_level = "trusted"
+TOML
+    fi
+
+    # Require API key
     if [ -z "$OPENAI_API_KEY" ]; then
       echo ""
       echo "ERROR: OPENAI_API_KEY is required when BACKEND_PROVIDER=codex."

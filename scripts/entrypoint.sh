@@ -138,6 +138,20 @@ if [ "${ENABLE_RC:-0}" = "1" ]; then
     exit 1
   fi
 
+  # Pre-seed workspace trust and RC dialog to avoid interactive prompts
+  CLAUDE_JSON="$HOME/.claude.json"
+  node -e "
+    const fs = require('fs');
+    let d = {};
+    try { d = JSON.parse(fs.readFileSync('$CLAUDE_JSON', 'utf8')); } catch {}
+    d.hasCompletedOnboarding = true;
+    d.remoteDialogSeen = true;
+    if (!d.projects) d.projects = {};
+    if (!d.projects['/app']) d.projects['/app'] = {};
+    d.projects['/app'].hasTrustDialogAccepted = true;
+    fs.writeFileSync('$CLAUDE_JSON', JSON.stringify(d, null, 2));
+  " 2>/dev/null || true
+
   RC_FLAGS=()
   [ -n "${RC_SESSION_NAME:-}" ]  && RC_FLAGS+=(--name "$RC_SESSION_NAME")
   [ -n "${RC_SPAWN_MODE:-}" ]    && RC_FLAGS+=(--spawn "$RC_SPAWN_MODE")
@@ -147,9 +161,9 @@ if [ "${ENABLE_RC:-0}" = "1" ]; then
   [ "${RC_SANDBOX:-}" = "0" ]    && RC_FLAGS+=(--no-sandbox)
 
   echo "Starting Claude Code Remote Control..."
-  echo y | $CLAUDE_CLI remote-control "${RC_FLAGS[@]}" &
+  $CLAUDE_CLI remote-control "${RC_FLAGS[@]}" &
   RC_PID=$!
-  sleep 0.5
+  sleep 1
   if ! kill -0 "$RC_PID" 2>/dev/null; then
     echo "WARNING: Remote Control process exited immediately -- check credentials."
   fi

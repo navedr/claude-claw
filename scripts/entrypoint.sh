@@ -126,4 +126,33 @@ else
   fi
 fi
 
+# ── Remote Control sidecar ──
+if [ "${ENABLE_RC:-0}" = "1" ]; then
+  if [ ! -f "$HOME/.claude.json" ] && [ ! -f "$HOME/.claude/credentials.json" ]; then
+    echo ""
+    echo "ERROR: Remote Control requires OAuth login (not API keys)."
+    echo ""
+    echo "Run: docker compose run --rm claude-claw login"
+    echo "Then set ENABLE_RC=1 and restart."
+    echo ""
+    exit 1
+  fi
+
+  RC_FLAGS=()
+  [ -n "${RC_SESSION_NAME:-}" ]  && RC_FLAGS+=(--name "$RC_SESSION_NAME")
+  [ -n "${RC_SPAWN_MODE:-}" ]    && RC_FLAGS+=(--spawn "$RC_SPAWN_MODE")
+  [ -n "${RC_CAPACITY:-}" ]      && RC_FLAGS+=(--capacity "$RC_CAPACITY")
+  [ "${RC_VERBOSE:-0}" = "1" ]   && RC_FLAGS+=(--verbose)
+  [ "${RC_SANDBOX:-}" = "1" ]    && RC_FLAGS+=(--sandbox)
+  [ "${RC_SANDBOX:-}" = "0" ]    && RC_FLAGS+=(--no-sandbox)
+
+  echo "Starting Claude Code Remote Control..."
+  $CLAUDE_CLI remote-control "${RC_FLAGS[@]}" &
+  RC_PID=$!
+  sleep 0.5
+  if ! kill -0 "$RC_PID" 2>/dev/null; then
+    echo "WARNING: Remote Control process exited immediately -- check credentials."
+  fi
+fi
+
 exec node dist/index.js "$@"

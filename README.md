@@ -81,6 +81,8 @@ Codex auto-loads `AGENTS.md` from cwd, so your existing Claude skills work uncha
 | `USER_NAME` | No | Your name (default: `User`) |
 | `GROQ_API_KEY` | No | Voice transcription via Groq Whisper |
 | `GOOGLE_API_KEY` | No | Video analysis via Gemini |
+| `ENABLE_RC` | No | Set to `1` to enable Remote Control |
+| `RC_SESSION_NAME` | No | RC session title (default: `ClaudeClaw`) |
 
 ## Bot Commands
 
@@ -102,6 +104,35 @@ Codex auto-loads `AGENTS.md` from cwd, so your existing Claude skills work uncha
 - **Multi-agent** -- complex tasks spawn parallel sub-agents with a live dashboard
 - **Session persistence** -- conversations maintain context across messages
 - **Scheduled tasks** -- set up recurring prompts via cron
+
+## Remote Control
+
+Access your ClaudeClaw workspace from [claude.ai/code](https://claude.ai/code) or the Claude mobile app. Runs alongside the Telegram bot in the same container.
+
+**Requires OAuth login** (API keys are not supported for Remote Control):
+
+```bash
+mkdir -p auth && touch auth/.claude.json
+docker compose run --rm claude-claw login
+```
+
+Enable in `.env`:
+
+```
+ENABLE_RC=1
+RC_SESSION_NAME=ClaudeClaw
+```
+
+Restart the container and your session will appear in [claude.ai/code](https://claude.ai/code).
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `ENABLE_RC` | `0` | Set to `1` to enable |
+| `RC_SESSION_NAME` | `ClaudeClaw` | Session title in claude.ai |
+| `RC_SPAWN_MODE` | `same-dir` | `same-dir`, `worktree`, or `session` |
+| `RC_CAPACITY` | `32` | Max concurrent sessions |
+| `RC_VERBOSE` | `0` | `1` for detailed logs |
+| `RC_SANDBOX` | *(default)* | `1` for `--sandbox`, `0` for `--no-sandbox` |
 
 ## Dashboard
 

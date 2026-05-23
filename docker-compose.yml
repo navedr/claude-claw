@@ -4,9 +4,17 @@ services:
     # build: .  # uncomment to build locally
     container_name: claude-claw
     restart: unless-stopped
+    init: true
     ports:
       - "3847:3847"
     env_file: .env
+    environment:
+      - ENABLE_RC=${ENABLE_RC:-0}
+      - RC_SESSION_NAME=${RC_SESSION_NAME:-ClaudeClaw}
+      - RC_SPAWN_MODE=${RC_SPAWN_MODE:-}
+      - RC_CAPACITY=${RC_CAPACITY:-}
+      - RC_VERBOSE=${RC_VERBOSE:-0}
+      - RC_SANDBOX=${RC_SANDBOX:-}
     volumes:
       - ./store:/app/store
       - ./workspace:/app/workspace

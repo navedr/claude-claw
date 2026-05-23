@@ -147,7 +147,7 @@ if [ "${ENABLE_RC:-0}" = "1" ]; then
   [ "${RC_SANDBOX:-}" = "0" ]    && RC_FLAGS+=(--no-sandbox)
 
   echo "Starting Claude Code Remote Control..."
-  $CLAUDE_CLI remote-control "${RC_FLAGS[@]}" &
+  echo y | $CLAUDE_CLI remote-control "${RC_FLAGS[@]}" &
   RC_PID=$!
   sleep 0.5
   if ! kill -0 "$RC_PID" 2>/dev/null; then

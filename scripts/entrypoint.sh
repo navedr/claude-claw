@@ -153,10 +153,11 @@ if [ "${ENABLE_RC:-0}" = "1" ]; then
   " 2>/dev/null || true
 
   RC_FLAGS=()
-  [ -n "${RC_SESSION_NAME:-}" ]  && RC_FLAGS+=(--name "$RC_SESSION_NAME")
-  [ -n "${RC_SPAWN_MODE:-}" ]    && RC_FLAGS+=(--spawn "$RC_SPAWN_MODE")
-  [ -n "${RC_CAPACITY:-}" ]      && RC_FLAGS+=(--capacity "$RC_CAPACITY")
-  [ "${RC_VERBOSE:-0}" = "1" ]   && RC_FLAGS+=(--verbose)
+  [ -n "${RC_SESSION_NAME:-}" ]       && RC_FLAGS+=(--name "$RC_SESSION_NAME")
+  [ -n "${RC_PERMISSION_MODE:-}" ]    && RC_FLAGS+=(--permission-mode "$RC_PERMISSION_MODE")
+  [ -n "${RC_SPAWN_MODE:-}" ]         && RC_FLAGS+=(--spawn "$RC_SPAWN_MODE")
+  [ -n "${RC_CAPACITY:-}" ]           && RC_FLAGS+=(--capacity "$RC_CAPACITY")
+  [ "${RC_VERBOSE:-0}" = "1" ]        && RC_FLAGS+=(--verbose)
   [ "${RC_SANDBOX:-}" = "1" ]    && RC_FLAGS+=(--sandbox)
   [ "${RC_SANDBOX:-}" = "0" ]    && RC_FLAGS+=(--no-sandbox)
 

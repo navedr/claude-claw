@@ -1,8 +1,18 @@
 # ClaudeClaw
 
-A Telegram bot that proxies messages to [Claude Code](https://claude.ai/code), giving you a personal AI assistant accessible from anywhere. Send text, voice, images, or files -- ClaudeClaw handles it all through Claude's agentic capabilities.
+A Docker-first AI assistant you can reach from Telegram, [claude.ai/code](https://claude.ai/code), or the Claude mobile app. Pick your backend -- Claude Code or OpenAI Codex -- and mix in Remote Control for web/mobile access. All three can run simultaneously in a single container.
 
-## Quick Start (Docker)
+## What it does
+
+| Surface | Backend | How it works |
+|---------|---------|--------------|
+| **Telegram bot** | Claude Code SDK or Codex CLI | Send text, voice, images, files, or video and get agentic responses |
+| **Remote Control** | Claude Code CLI | Drive a full Claude Code session from claude.ai/code or the Claude app on your phone |
+| **Dashboard** | -- | Live job monitoring, token usage, and history at `http://localhost:3847` |
+
+You can run the Telegram bot on Codex while simultaneously running Remote Control on Claude -- they're independent processes in the same container.
+
+## Quick Start
 
 ### 1. Download config files
 
@@ -17,20 +27,22 @@ cp .env.example .env
 1. Message [@BotFather](https://t.me/BotFather) on Telegram to create a bot
 2. Copy the bot token into `.env` as `TELEGRAM_BOT_TOKEN`
 
-### 3. Authenticate with Claude
+### 3. Authenticate
 
-**Option A: API Key (simplest)**
+Pick your backend and authenticate:
 
-Set `ANTHROPIC_API_KEY` in your `.env` file. Get one at [console.anthropic.com](https://console.anthropic.com/settings/keys).
+**Claude (default)**
 
-**Option B: CLI Login (no API key needed)**
+Set `ANTHROPIC_API_KEY` in `.env`, or run the OAuth login flow:
 
 ```bash
 mkdir -p auth && touch auth/.claude.json
 docker compose run --rm claude-claw login
 ```
 
-A URL will appear -- open it in your browser to complete OAuth. Credentials persist in `./auth/` across restarts.
+**Codex**
+
+Set `BACKEND_PROVIDER=codex` and `OPENAI_API_KEY` in `.env`. For Azure, set `CODEX_PROVIDER=azure` with `AZURE_OPENAI_ENDPOINT` and `AZURE_OPENAI_API_KEY`.
 
 ### 4. Get your chat ID
 
@@ -44,72 +56,11 @@ Send `/chatid` to your bot in Telegram. Add the ID to `.env` as `ALLOWED_CHAT_ID
 docker compose restart
 ```
 
-Your bot is now ready to use.
-
-## Backends
-
-ClaudeClaw supports two backends, selected via `BACKEND_PROVIDER`:
-
-- `claude` (default) -- uses [Claude Code](https://claude.ai/code). Auth via `ANTHROPIC_API_KEY` or the `login` subcommand.
-- `codex` -- uses [OpenAI Codex CLI](https://github.com/openai/codex). Set `CODEX_MODEL` to pick a specific model; leave blank for CLI default. Two providers:
-  - `CODEX_PROVIDER=openai` (default) -- requires `OPENAI_API_KEY`.
-  - `CODEX_PROVIDER=azure` -- requires `AZURE_OPENAI_ENDPOINT` and `AZURE_OPENAI_API_KEY`. Generates `~/.codex/config.toml` automatically at boot.
-
-### Skills (Codex)
-
-Codex doesn't natively support Claude's skills system, so ClaudeClaw bridges them via `AGENTS.md`. Before every Codex turn, the bot regenerates `/app/AGENTS.md` by concatenating:
-
-1. `CLAUDE.md` (personality)
-2. Every `*.md` file in `~/.claude/skills/` inside the container
-
-Codex auto-loads `AGENTS.md` from cwd, so your existing Claude skills work unchanged. Drop a new skill file into the mounted skills directory and it's picked up on the next message -- no restart.
-
-## Configuration
-
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `TELEGRAM_BOT_TOKEN` | Yes | Bot token from [@BotFather](https://t.me/BotFather) |
-| `ALLOWED_CHAT_ID` | Yes | Your Telegram chat ID (send `/chatid` to bot) |
-| `BACKEND_PROVIDER` | No | `claude` (default) or `codex` |
-| `ANTHROPIC_API_KEY` | Claude | API key for Claude (or use `login` subcommand) |
-| `CODEX_PROVIDER` | No | `openai` (default) or `azure` |
-| `OPENAI_API_KEY` | Codex/openai | API key for OpenAI Codex |
-| `AZURE_OPENAI_ENDPOINT` | Codex/azure | Azure resource URL (e.g. `https://myres.openai.azure.com`) |
-| `AZURE_OPENAI_API_KEY` | Codex/azure | API key from Azure Foundry deployment |
-| `CODEX_MODEL` | No | Codex model/deployment name (blank = CLI default) |
-| `ASSISTANT_NAME` | No | Bot's name (default: `Assistant`) |
-| `USER_NAME` | No | Your name (default: `User`) |
-| `GROQ_API_KEY` | No | Voice transcription via Groq Whisper |
-| `GOOGLE_API_KEY` | No | Video analysis via Gemini |
-| `ENABLE_RC` | No | Set to `1` to enable Remote Control |
-| `RC_SESSION_NAME` | No | RC session title (default: `ClaudeClaw`) |
-
-## Bot Commands
-
-| Command | Description |
-|---------|-------------|
-| `/start` | Initialize the bot |
-| `/chatid` | Get your Telegram chat ID |
-| `/status` | View running jobs and usage stats |
-| `/newsession` | Start a fresh Claude session |
-| `/cancel` | Cancel the current operation |
-
-## Features
-
-- **Text** -- send any message, get Claude's response
-- **Voice** -- send voice messages, auto-transcribed via Groq Whisper
-- **Images** -- send photos for visual analysis
-- **Files** -- send documents for Claude to read and process
-- **Video** -- send video files for analysis via Gemini
-- **Multi-agent** -- complex tasks spawn parallel sub-agents with a live dashboard
-- **Session persistence** -- conversations maintain context across messages
-- **Scheduled tasks** -- set up recurring prompts via cron
-
 ## Remote Control
 
-Access your ClaudeClaw workspace from [claude.ai/code](https://claude.ai/code) or the Claude mobile app. Runs alongside the Telegram bot in the same container.
+Run a full Claude Code session accessible from [claude.ai/code](https://claude.ai/code) or the Claude mobile app. Runs alongside the Telegram bot in the same container -- your local filesystem, MCP servers, and project config all stay available.
 
-**Requires OAuth login** (API keys are not supported for Remote Control):
+**Requires OAuth login** (API keys are not supported):
 
 ```bash
 mkdir -p auth && touch auth/.claude.json
@@ -125,56 +76,116 @@ RC_SESSION_NAME=ClaudeClaw
 
 Restart the container and your session will appear in [claude.ai/code](https://claude.ai/code).
 
+> Remote Control works independently of `BACKEND_PROVIDER`. You can run the Telegram bot on Codex (`BACKEND_PROVIDER=codex`) and Remote Control on Claude simultaneously.
+
+## Backends
+
+### Claude (default)
+
+`BACKEND_PROVIDER=claude` -- uses the [Claude Code SDK](https://docs.anthropic.com/en/docs/claude-code). Auth via `ANTHROPIC_API_KEY` or the `login` subcommand.
+
+### Codex
+
+`BACKEND_PROVIDER=codex` -- uses [OpenAI Codex CLI](https://github.com/openai/codex). Two providers:
+
+- `CODEX_PROVIDER=openai` (default) -- requires `OPENAI_API_KEY`
+- `CODEX_PROVIDER=azure` -- requires `AZURE_OPENAI_ENDPOINT` and `AZURE_OPENAI_API_KEY`. Config is auto-provisioned at boot.
+
+Set `CODEX_MODEL` to pick a specific model/deployment; leave blank for CLI default.
+
+#### Skills bridging
+
+Codex doesn't natively support Claude's skills system. ClaudeClaw bridges them by regenerating `/app/AGENTS.md` before every Codex turn, concatenating `CLAUDE.md` and all `*.md` files from `~/.claude/skills/`. Drop a new skill file into the mounted skills directory and it's picked up on the next message.
+
+## Configuration
+
+### Core
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `TELEGRAM_BOT_TOKEN` | Yes | Bot token from [@BotFather](https://t.me/BotFather) |
+| `ALLOWED_CHAT_ID` | Yes | Your Telegram chat ID (send `/chatid` to bot) |
+| `BACKEND_PROVIDER` | No | `claude` (default) or `codex` |
+| `ASSISTANT_NAME` | No | Bot's name (default: `Assistant`) |
+| `USER_NAME` | No | Your name (default: `User`) |
+
+### Claude backend
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `ANTHROPIC_API_KEY` | One of | API key (or use `login` for OAuth) |
+
+### Codex backend
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `CODEX_PROVIDER` | No | `openai` (default) or `azure` |
+| `OPENAI_API_KEY` | openai | API key for OpenAI |
+| `AZURE_OPENAI_ENDPOINT` | azure | Azure resource URL |
+| `AZURE_OPENAI_API_KEY` | azure | API key from Azure |
+| `CODEX_MODEL` | No | Model/deployment name (blank = default) |
+
+### Remote Control
+
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `ENABLE_RC` | `0` | Set to `1` to enable |
 | `RC_SESSION_NAME` | `ClaudeClaw` | Session title in claude.ai |
+| `RC_PERMISSION_MODE` | *(default)* | `default`, `acceptEdits`, `bypassPermissions`, `dontAsk`, `plan` |
 | `RC_SPAWN_MODE` | `same-dir` | `same-dir`, `worktree`, or `session` |
 | `RC_CAPACITY` | `32` | Max concurrent sessions |
 | `RC_VERBOSE` | `0` | `1` for detailed logs |
 | `RC_SANDBOX` | *(default)* | `1` for `--sandbox`, `0` for `--no-sandbox` |
 
-## Dashboard
+### Media & extras
 
-A live mission control dashboard runs at `http://localhost:3847` showing:
-- Running jobs and sub-agents
-- Token usage statistics
-- Job history
+| Variable | Description |
+|----------|-------------|
+| `GROQ_API_KEY` | Voice transcription via Groq Whisper |
+| `GOOGLE_API_KEY` | Video analysis via Gemini |
 
-## Local Development
-
-```bash
-git clone https://github.com/navedr/claude-claw.git
-cd claude-claw
-npm install
-cp .env.example .env
-# Edit .env with your tokens
-npm run dev
-```
-
-### Scripts
+## Bot Commands
 
 | Command | Description |
 |---------|-------------|
-| `npm run dev` | Start in development mode (tsx) |
-| `npm start` | Start production build |
-| `npm run build` | Compile TypeScript |
-| `npm run setup` | Interactive setup wizard |
-| `npm test` | Run tests |
+| `/start` | Initialize the bot |
+| `/chatid` | Get your Telegram chat ID |
+| `/status` | View running jobs and usage stats |
+| `/newsession` | Start a fresh session |
+| `/cancel` | Cancel the current operation |
+
+## Features
+
+- **Text** -- send any message, get an agentic response
+- **Voice** -- voice messages auto-transcribed via Groq Whisper
+- **Images** -- photos analyzed via vision
+- **Files** -- documents read and processed by the agent
+- **Video** -- video files analyzed via Gemini
+- **Multi-agent** -- complex tasks spawn parallel sub-agents with live dashboard
+- **Session persistence** -- conversations maintain context across messages
+- **Scheduled tasks** -- recurring prompts via cron
+- **Remote Control** -- access from claude.ai/code or Claude mobile app
 
 ## Architecture
 
 ```
-Telegram <-> grammy bot <-> Agent backend <-> Claude Code SDK / Codex CLI
-                |                  |
-                v                  v
-           Dashboard (3847)   Sub-agents (parallel tasks)
-                |
-                v
-           SQLite (store/)
+                                ┌─────────────────────────┐
+                                │      Docker container    │
+                                │                          │
+Telegram ◄──► grammy bot ◄──► Agent backend               │
+                 │              ├─ Claude Code SDK          │
+                 │              └─ Codex CLI                │
+                 │                                         │
+                 ├──► Dashboard (port 3847)                │
+                 ├──► SQLite (store/)                      │
+                 └──► Sub-agents (parallel tasks)          │
+                                                           │
+claude.ai/code ◄──► Claude RC (remote-control)            │
+Claude app         (outbound HTTPS, no inbound ports)      │
+                                └─────────────────────────┘
 ```
 
-Backend is selected at startup via `BACKEND_PROVIDER`. Both SDKs ship in the image.
+The Telegram bot and Remote Control are independent processes managed by the entrypoint script. `init: true` in docker-compose ensures clean signal forwarding to both on container stop.
 
 ## Customization
 
@@ -188,6 +199,25 @@ volumes:
 Or set `ASSISTANT_NAME` and `USER_NAME` env vars to auto-generate from the built-in template.
 
 See `CLAUDE.md.example` for an advanced configuration reference.
+
+## Local Development
+
+```bash
+git clone https://github.com/navedr/claude-claw.git
+cd claude-claw
+npm install
+cp .env.example .env
+# Edit .env with your tokens
+npm run dev
+```
+
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Start in development mode (tsx) |
+| `npm start` | Start production build |
+| `npm run build` | Compile TypeScript |
+| `npm run setup` | Interactive setup wizard |
+| `npm test` | Run tests |
 
 ## License
 

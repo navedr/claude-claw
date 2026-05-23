@@ -11,6 +11,7 @@ services:
     environment:
       - ENABLE_RC=${ENABLE_RC:-0}
       - RC_SESSION_NAME=${RC_SESSION_NAME:-ClaudeClaw}
+      - RC_PERMISSION_MODE=${RC_PERMISSION_MODE:-}
       - RC_SPAWN_MODE=${RC_SPAWN_MODE:-}
       - RC_CAPACITY=${RC_CAPACITY:-}
       - RC_VERBOSE=${RC_VERBOSE:-0}

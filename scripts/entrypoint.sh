@@ -153,6 +153,18 @@ if [ "${ENABLE_RC:-0}" = "1" ]; then
   if ! kill -0 "$RC_PID" 2>/dev/null; then
     echo "WARNING: Remote Control process exited immediately -- check credentials."
   fi
+
+  node dist/index.js "$@" &
+  BOT_PID=$!
+
+  cleanup() {
+    kill "$RC_PID" "$BOT_PID" 2>/dev/null
+    wait "$RC_PID" "$BOT_PID" 2>/dev/null
+  }
+  trap cleanup SIGTERM SIGINT EXIT
+
+  wait "$BOT_PID"
+  exit $?
 fi
 
 exec node dist/index.js "$@"

@@ -25,7 +25,13 @@ while :; do sleep 1; done
     chmodSync(fakeT3, 0o755)
 
     const fakeNode = join(binDir, 'node')
-    writeFileSync(fakeNode, '#!/bin/sh\nexit 0\n')
+    writeFileSync(fakeNode, `#!/bin/sh
+for attempt in $(seq 1 100); do
+  [ -s /test/t3-args ] && exit 0
+  sleep 0.01
+done
+exit 1
+`)
     chmodSync(fakeNode, 0o755)
 
     try {

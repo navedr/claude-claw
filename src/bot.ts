@@ -98,6 +98,7 @@ export function isAuthorised(chatId: number | string): boolean {
 }
 
 const voiceEnabledChats = new Set<string>()
+const activeChats = new Set<string>()
 
 async function handleMessage(
   ctx: Context,
@@ -109,6 +110,11 @@ async function handleMessage(
     await ctx.reply('Unauthorized.')
     return
   }
+  if (activeChats.has(chatId)) {
+    await ctx.reply('This chat already has a Codex turn in progress. Please wait for it to finish.')
+    return
+  }
+  activeChats.add(chatId)
 
   const correlationId = randomUUID()
   createJob(correlationId, chatId, 'message', rawText)
@@ -170,6 +176,8 @@ async function handleMessage(
     logger.error({ err }, 'runAgent failed')
     completeJob(correlationId, `ERROR: ${errMsg}`, Date.now() - startTime, 'failed')
     await ctx.reply(`❌ Error: ${errMsg}`)
+  } finally {
+    activeChats.delete(chatId)
   }
 }
 

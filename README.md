@@ -6,7 +6,7 @@ A Docker-first AI assistant you can reach from Telegram, [claude.ai/code](https:
 
 | Surface | Backend | How it works |
 |---------|---------|--------------|
-| **Telegram bot** | Claude Code SDK or Codex CLI | Send text, voice, images, files, or video and get agentic responses |
+| **Telegram bot** | Claude Code SDK or Codex SDK | Send text, voice, images, files, or video and get agentic responses |
 | **Remote Control** | Claude Code CLI | Drive a full Claude Code session from claude.ai/code or the Claude app on your phone |
 | **Dashboard** | -- | Live job monitoring, token usage, and history at `http://localhost:3847` |
 
@@ -78,6 +78,19 @@ Restart the container and your session will appear in [claude.ai/code](https://c
 
 > Remote Control works independently of `BACKEND_PROVIDER`. You can run the Telegram bot on Codex (`BACKEND_PROVIDER=codex`) and Remote Control on Claude simultaneously.
 
+## T3 Code Control Plane
+
+T3 Code runs in the same container as Telegram and uses the same persisted `~/.codex` directory. Each Telegram chat keeps one durable Codex thread; `/newchat` or `/newsession` starts a replacement thread. That thread is visible in T3, where you can inspect, resume, and manage it alongside sessions created directly in T3.
+
+Enable it in `.env`:
+
+```
+ENABLE_T3=1
+```
+
+Compose exposes T3 on `127.0.0.1:3773` only. Forward it from your workstation with `ssh -L 3773:127.0.0.1:3773 butler`, or configure Tailscale Serve on the Butler host to proxy its loopback port. Use `docker compose exec claude-claw t3 pair` to create a pairing token after the server is running. Treat pairing links and tokens as credentials.
+
+Telegram serializes messages per chat. Do not submit work from Telegram and T3 to the same Codex thread at the same time; T3 is the full control plane for manually coordinating that shared session.
 ## Backends
 
 ### Claude (default)
@@ -86,12 +99,12 @@ Restart the container and your session will appear in [claude.ai/code](https://c
 
 ### Codex
 
-`BACKEND_PROVIDER=codex` -- uses [OpenAI Codex CLI](https://github.com/openai/codex). Two providers:
+`BACKEND_PROVIDER=codex` -- uses the [OpenAI Codex SDK](https://learn.chatgpt.com/docs/codex-sdk), backed by the installed Codex CLI. Two providers:
 
 - `CODEX_PROVIDER=openai` (default) -- requires `OPENAI_API_KEY`
 - `CODEX_PROVIDER=azure` -- requires `AZURE_OPENAI_ENDPOINT` and `AZURE_OPENAI_API_KEY`. Config is auto-provisioned at boot.
 
-Set `CODEX_MODEL` to pick a specific model/deployment; leave blank for CLI default.
+Set `CODEX_MODEL` to pick a specific model/deployment; leave blank for the Codex default.
 
 #### Skills bridging
 
@@ -174,9 +187,10 @@ Codex doesn't natively support Claude's skills system. ClaudeClaw bridges them b
                                 │                          │
 Telegram ◄──► grammy bot ◄──► Agent backend               │
                  │              ├─ Claude Code SDK          │
-                 │              └─ Codex CLI                │
+                 │              └─ Codex SDK                │
                  │                                         │
                  ├──► Dashboard (port 3847)                │
+                 ├──► T3 Code (private port 3773)          │
                  ├──► SQLite (store/)                      │
                  └──► Sub-agents (parallel tasks)          │
                                                            │
@@ -185,7 +199,7 @@ Claude app         (outbound HTTPS, no inbound ports)      │
                                 └─────────────────────────┘
 ```
 
-The Telegram bot and Remote Control are independent processes managed by the entrypoint script. `init: true` in docker-compose ensures clean signal forwarding to both on container stop.
+The Telegram bot, Remote Control, and optional T3 Code sidecar are supervised by the entrypoint script. `init: true` in docker-compose ensures clean signal forwarding to both on container stop.
 
 ## Customization
 

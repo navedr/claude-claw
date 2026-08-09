@@ -127,6 +127,9 @@ else
 fi
 
 # ── Remote Control sidecar ──
+RC_PID=""
+T3_PID=""
+
 if [ "${ENABLE_RC:-0}" = "1" ]; then
   if [ ! -f "$HOME/.claude.json" ] && [ ! -f "$HOME/.claude/credentials.json" ]; then
     echo ""
@@ -138,10 +141,22 @@ if [ "${ENABLE_RC:-0}" = "1" ]; then
     exit 1
   fi
 
-  # Pre-seed workspace trust and RC dialog to avoid interactive prompts
   CLAUDE_JSON="$HOME/.claude.json"
-  node -e "
+  CRED_FILE="$HOME/.claude/.credentials.json"
+  if ! node -e "
     const fs = require('fs');
+    try {
+      const creds = JSON.parse(fs.readFileSync('$CRED_FILE', 'utf8'));
+      const exp = creds.claudeAiOauth?.expiresAt;
+      if (exp && exp < Date.now()) {
+        console.error('');
+        console.error('WARNING: OAuth token expired on ' + new Date(exp).toISOString());
+        console.error('RC bridge may connect but spawned sessions will fail (401).');
+        console.error('Run: docker compose run --rm -e BACKEND_PROVIDER=claude claude-claw login');
+        console.error('');
+        process.exit(1);
+      }
+    } catch {}
     let d = {};
     try { d = JSON.parse(fs.readFileSync('$CLAUDE_JSON', 'utf8')); } catch {}
     d.hasCompletedOnboarding = true;
@@ -150,36 +165,49 @@ if [ "${ENABLE_RC:-0}" = "1" ]; then
     if (!d.projects['/app']) d.projects['/app'] = {};
     d.projects['/app'].hasTrustDialogAccepted = true;
     fs.writeFileSync('$CLAUDE_JSON', JSON.stringify(d, null, 2));
-  " 2>/dev/null || true
+  "; then
+    echo "RC disabled due to expired OAuth token. The Telegram bot and T3 Code will continue to run."
+  else
+    RC_FLAGS=()
+    [ -n "${RC_SESSION_NAME:-}" ] && RC_FLAGS+=(--name "$RC_SESSION_NAME")
+    [ -n "${RC_PERMISSION_MODE:-}" ] && RC_FLAGS+=(--permission-mode "$RC_PERMISSION_MODE")
+    [ -n "${RC_SPAWN_MODE:-}" ] && RC_FLAGS+=(--spawn "$RC_SPAWN_MODE")
+    [ -n "${RC_CAPACITY:-}" ] && RC_FLAGS+=(--capacity "$RC_CAPACITY")
+    [ "${RC_VERBOSE:-0}" = "1" ] && RC_FLAGS+=(--verbose)
+    [ "${RC_SANDBOX:-}" = "1" ] && RC_FLAGS+=(--sandbox)
+    [ "${RC_SANDBOX:-}" = "0" ] && RC_FLAGS+=(--no-sandbox)
 
-  RC_FLAGS=()
-  [ -n "${RC_SESSION_NAME:-}" ]       && RC_FLAGS+=(--name "$RC_SESSION_NAME")
-  [ -n "${RC_PERMISSION_MODE:-}" ]    && RC_FLAGS+=(--permission-mode "$RC_PERMISSION_MODE")
-  [ -n "${RC_SPAWN_MODE:-}" ]         && RC_FLAGS+=(--spawn "$RC_SPAWN_MODE")
-  [ -n "${RC_CAPACITY:-}" ]           && RC_FLAGS+=(--capacity "$RC_CAPACITY")
-  [ "${RC_VERBOSE:-0}" = "1" ]        && RC_FLAGS+=(--verbose)
-  [ "${RC_SANDBOX:-}" = "1" ]    && RC_FLAGS+=(--sandbox)
-  [ "${RC_SANDBOX:-}" = "0" ]    && RC_FLAGS+=(--no-sandbox)
-
-  echo "Starting Claude Code Remote Control..."
-  $CLAUDE_CLI remote-control "${RC_FLAGS[@]}" &
-  RC_PID=$!
-  sleep 1
-  if ! kill -0 "$RC_PID" 2>/dev/null; then
-    echo "WARNING: Remote Control process exited immediately -- check credentials."
+    echo "Starting Claude Code Remote Control..."
+    $CLAUDE_CLI remote-control "${RC_FLAGS[@]}" &
+    RC_PID=$!
+    sleep 1
+    if ! kill -0 "$RC_PID" 2>/dev/null; then
+      echo "WARNING: Remote Control process exited immediately -- check credentials."
+      RC_PID=""
+    fi
   fi
-
-  node dist/index.js "$@" &
-  BOT_PID=$!
-
-  cleanup() {
-    kill "$RC_PID" "$BOT_PID" 2>/dev/null
-    wait "$RC_PID" "$BOT_PID" 2>/dev/null
-  }
-  trap cleanup SIGTERM SIGINT EXIT
-
-  wait "$BOT_PID"
-  exit $?
 fi
 
-exec node dist/index.js "$@"
+if [ "${ENABLE_T3:-0}" = "1" ]; then
+  echo "Starting T3 Code on ${T3_HOST:-0.0.0.0}:${T3_PORT:-3773}..."
+  t3 serve --host "${T3_HOST:-0.0.0.0}" --port "${T3_PORT:-3773}" "${T3_WORKSPACE:-/app}" &
+  T3_PID=$!
+fi
+
+node dist/index.js "$@" &
+BOT_PID=$!
+
+cleanup() {
+  kill "$BOT_PID" "$RC_PID" "$T3_PID" 2>/dev/null || true
+  wait "$BOT_PID" "$RC_PID" "$T3_PID" 2>/dev/null || true
+}
+trap cleanup SIGTERM SIGINT EXIT
+
+PIDS=("$BOT_PID")
+[ -n "$RC_PID" ] && PIDS+=("$RC_PID")
+[ -n "$T3_PID" ] && PIDS+=("$T3_PID")
+if wait -n "${PIDS[@]}"; then
+  exit 0
+else
+  exit $?
+fi

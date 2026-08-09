@@ -7,6 +7,7 @@ services:
     init: true
     ports:
       - "3847:3847"
+      - "127.0.0.1:${T3_PORT:-3773}:3773"
     env_file: .env
     environment:
       - ENABLE_RC=${ENABLE_RC:-0}
@@ -16,11 +17,17 @@ services:
       - RC_CAPACITY=${RC_CAPACITY:-}
       - RC_VERBOSE=${RC_VERBOSE:-0}
       - RC_SANDBOX=${RC_SANDBOX:-}
+      - ENABLE_T3=${ENABLE_T3:-0}
+      - T3_HOST=${T3_HOST:-0.0.0.0}
+      - T3_PORT=${T3_PORT:-3773}
+      - T3_WORKSPACE=${T3_WORKSPACE:-/app}
     volumes:
       - ./store:/app/store
       - ./workspace:/app/workspace
       - ./memory.md:/app/memory.md
       - ./auth:/home/node/.claude          # persist CLI state across restarts
       - ./auth/.claude.json:/home/node/.claude.json  # persist CLI auth
+      - ./codex:/home/node/.codex       # shared Codex auth and session store
+      - ./t3:/home/node/.t3             # T3 pairing and control-plane state
       # Optional: mount custom CLAUDE.md to skip template generation
       # - ./CLAUDE.md:/app/CLAUDE.md:ro

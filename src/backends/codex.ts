@@ -1,49 +1,31 @@
-import { spawn } from 'child_process'
-import { createRequire } from 'module'
+import { Codex, type ThreadEvent, type ThreadItem, type ThreadOptions } from '@openai/codex-sdk'
 import { PROJECT_ROOT } from '../config.js'
 import { logger } from '../logger.js'
 import { regenerateAgentsMd } from './agents-md.js'
 import type { AgentBackend, AgentRunArgs, AgentRunResult } from './types.js'
 
-const _require = createRequire(import.meta.url)
-
-function resolveCodexPath(): string {
-  const candidates = [
-    '@openai/codex/bin/codex.js',
-    '@openai/codex/dist/cli.js',
-    '@openai/codex',
-  ]
-  for (const c of candidates) {
-    try {
-      return _require.resolve(c)
-    } catch {
-      // try next
-    }
-  }
-  throw new Error(
-    'Could not resolve @openai/codex CLI. Tried: ' + candidates.join(', '),
-  )
-}
-
-function pickString(obj: any, keys: string[]): string | undefined {
-  for (const k of keys) {
-    const v = obj?.[k]
-    if (typeof v === 'string' && v.length > 0) return v
-  }
-  return undefined
-}
-
-function pickNumber(obj: any, keys: string[]): number | undefined {
-  for (const k of keys) {
-    const v = obj?.[k]
-    if (typeof v === 'number') return v
-  }
-  return undefined
-}
-
 function isResumeMissError(err: unknown): boolean {
   const msg = err instanceof Error ? err.message : String(err)
   return /no rollout found|thread\/resume|unknown session|session not found/i.test(msg)
+}
+
+function threadOptions(): ThreadOptions {
+  const model = process.env.CODEX_MODEL
+  return {
+    workingDirectory: PROJECT_ROOT,
+    skipGitRepoCheck: true,
+    sandboxMode: 'workspace-write',
+    approvalPolicy: 'on-request',
+    ...(model ? { model } : {}),
+  }
+}
+
+function describeItem(item: ThreadItem): string | undefined {
+  if (item.type === 'command_execution') return item.command
+  if (item.type === 'web_search') return item.query
+  if (item.type === 'mcp_tool_call') return item.server + '.' + item.tool
+  if (item.type === 'file_change') return item.changes.map(change => change.kind + ': ' + change.path).join(', ')
+  return item.type === 'agent_message' || item.type === 'reasoning' ? item.text : undefined
 }
 
 export const codexBackend: AgentBackend = {
@@ -55,149 +37,58 @@ export const codexBackend: AgentBackend = {
     }
 
     try {
-      return await spawnCodex(args)
+      return await runCodex(args)
     } catch (err) {
       if (args.sessionId && isResumeMissError(err)) {
         logger.warn({ sessionId: args.sessionId }, 'codex resume failed; retrying without session')
-        return spawnCodex({ ...args, sessionId: undefined })
+        return runCodex({ ...args, sessionId: undefined })
       }
       throw err
     }
   },
 }
 
-async function spawnCodex({ message, sessionId, onTyping, onSubTask, onUsage }: AgentRunArgs): Promise<AgentRunResult> {
+async function runCodex({ message, sessionId, onTyping, onSubTask, onUsage }: AgentRunArgs): Promise<AgentRunResult> {
+  const codex = new Codex({ apiKey: process.env.OPENAI_API_KEY || undefined })
+  const options = threadOptions()
+  const thread = sessionId ? codex.resumeThread(sessionId, options) : codex.startThread(options)
   let resultText: string | null = null
-  let newSessionId: string | undefined
+  let newSessionId: string | undefined = sessionId
 
-  const codexPath = resolveCodexPath()
+  logger.info({ cwd: PROJECT_ROOT, sessionId, model: options.model }, 'codex SDK turn started')
 
-  // codex CLI layout:
-  //   fresh:  codex exec [--json] [-m MODEL] -- <PROMPT>
-  //   resume: codex exec resume [--json] [-m MODEL] -- <SESSION_ID> <PROMPT>
-  const cliArgs: string[] = [codexPath, 'exec']
-  if (sessionId) cliArgs.push('resume')
-  cliArgs.push('--json', '--skip-git-repo-check', '--dangerously-bypass-approvals-and-sandbox')
-  const model = process.env.CODEX_MODEL
-  if (model) cliArgs.push('-m', model)
-  cliArgs.push('--')
-  if (sessionId) cliArgs.push(sessionId)
-  cliArgs.push(message)
-
-  logger.info({ cwd: PROJECT_ROOT, cli: codexPath, sessionId, model }, 'codexBackend started')
-
-  const typingInterval = onTyping
-    ? setInterval(() => onTyping(), 4000)
-    : null
-
+  const typingInterval = onTyping ? setInterval(() => onTyping(), 4000) : null
   try {
-    await new Promise<void>((resolve, reject) => {
-      const child = spawn(process.execPath, cliArgs, {
-        cwd: PROJECT_ROOT,
-        env: process.env,
-        stdio: ['ignore', 'pipe', 'pipe'],
-      })
-
-      let stdoutBuf = ''
-      let stderrBuf = ''
-
-      child.stdout.on('data', (chunk: Buffer) => {
-        stdoutBuf += chunk.toString('utf8')
-        let idx: number
-        while ((idx = stdoutBuf.indexOf('\n')) >= 0) {
-          const line = stdoutBuf.slice(0, idx).trim()
-          stdoutBuf = stdoutBuf.slice(idx + 1)
-          if (!line) continue
-          let event: any
-          try {
-            event = JSON.parse(line)
-          } catch {
-            logger.warn({ line }, 'codex non-json stdout line')
-            continue
-          }
-          try {
-            handleEvent(event)
-          } catch (err) {
-            logger.warn({ err, event }, 'codex event handler error')
-          }
-        }
-      })
-
-      child.stderr.on('data', (chunk: Buffer) => {
-        const s = chunk.toString('utf8')
-        stderrBuf += s
-        logger.error({ stderr: s }, 'codex stderr')
-      })
-
-      child.on('error', (err) => {
-        reject(new Error(`Failed to spawn codex: ${err.message}`))
-      })
-
-      child.on('close', (code) => {
-        if (stdoutBuf.trim()) {
-          try {
-            const event = JSON.parse(stdoutBuf.trim())
-            handleEvent(event)
-          } catch {
-            // ignore trailing junk
-          }
-        }
-        if (code === 0) {
-          resolve()
-        } else {
-          reject(new Error(`codex exited with code ${code}: ${stderrBuf.slice(0, 500)}`))
-        }
-      })
-
-      // Codex JSON event shapes (as of @openai/codex current):
-      //   { type: "thread.started", thread_id }
-      //   { type: "turn.started" }
-      //   { type: "item.started",   item: { id, type: "command_execution"|"agent_message"|..., ... } }
-      //   { type: "item.completed", item: { id, type, text?, command?, ... } }
-      //   { type: "turn.completed", usage: { input_tokens, output_tokens, cached_input_tokens } }
-      //   { type: "error" | "turn.failed", ... }
-      function handleEvent(event: any) {
-        if (!event || typeof event !== 'object') return
-        const type: string | undefined = typeof event.type === 'string' ? event.type : undefined
-
-        if (type === 'thread.started') {
-          const tid = pickString(event, ['thread_id', 'session_id', 'conversation_id', 'rollout_id'])
-          if (tid) newSessionId = tid
-          return
-        }
-
-        if (type === 'item.started' || type === 'item.completed') {
-          const item = event.item ?? {}
-          const itemType: string | undefined = typeof item.type === 'string' ? item.type : undefined
-
-          if (type === 'item.completed' && itemType === 'agent_message') {
-            const text = pickString(item, ['text', 'message', 'content'])
-            if (text) resultText = text
-            return
-          }
-
-          if (type === 'item.started' && onSubTask) {
-            const desc =
-              pickString(item, ['description', 'name', 'command', 'tool_name', 'text']) ??
-              (itemType ? `[${itemType}]` : undefined)
-            if (desc) onSubTask(desc.length > 120 ? desc.slice(0, 117) + '...' : desc)
-          }
-          return
-        }
-
-        if (type === 'turn.completed' && event.usage && onUsage) {
-          const u = event.usage
-          const input_tokens = pickNumber(u, ['input_tokens', 'prompt_tokens', 'input']) ?? 0
-          const output_tokens = pickNumber(u, ['output_tokens', 'completion_tokens', 'output']) ?? 0
-          const cache_read_input_tokens = pickNumber(u, ['cached_input_tokens', 'cache_read_input_tokens']) ?? 0
-          onUsage({ input_tokens, output_tokens, cache_read_input_tokens })
-          return
-        }
-      }
-    })
+    const { events } = await thread.runStreamed(message)
+    for await (const event of events) handleEvent(event)
   } finally {
     if (typingInterval) clearInterval(typingInterval)
   }
 
-  return { text: resultText, newSessionId }
+  return { text: resultText, newSessionId: newSessionId ?? thread.id ?? undefined }
+
+  function handleEvent(event: ThreadEvent): void {
+    if (event.type === 'thread.started') {
+      newSessionId = event.thread_id
+      return
+    }
+    if (event.type === 'turn.failed') throw new Error(event.error.message)
+    if (event.type === 'error') throw new Error(event.message)
+    if (event.type === 'turn.completed') {
+      onUsage?.({
+        input_tokens: event.usage.input_tokens,
+        output_tokens: event.usage.output_tokens,
+        cache_read_input_tokens: event.usage.cached_input_tokens,
+      })
+      return
+    }
+    if (event.type === 'item.completed' && event.item.type === 'agent_message') {
+      resultText = event.item.text
+      return
+    }
+    if (event.type === 'item.started') {
+      const description = describeItem(event.item)
+      if (description) onSubTask?.(description.length > 120 ? description.slice(0, 117) + '...' : description)
+    }
+  }
 }

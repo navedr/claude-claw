@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -e
+export PATH="/app/node_modules/.bin:$PATH"
 
 CLAUDE_CLI="node /app/node_modules/@anthropic-ai/claude-code/cli.js"
 CODEX_CLI="node /app/node_modules/@openai/codex/bin/codex.js"

@@ -16,6 +16,7 @@ describe('T3 entrypoint startup', () => {
     const fakeT3 = join(binDir, 't3')
     writeFileSync(fakeT3, `#!/bin/sh
 printf '%s\n' "$@" > /test/t3-args
+printf '%s\n' "$(command -v codex)" > /test/codex-path
 if [ "$1" = serve ]; then
   printf '%s\n' 'Connection string: synthetic' 'Token: synthetic' 'Pairing URL: synthetic'
 fi
@@ -27,7 +28,7 @@ while :; do sleep 1; done
     const fakeNode = join(binDir, 'node')
     writeFileSync(fakeNode, `#!/bin/sh
 for attempt in $(seq 1 100); do
-  [ -s /test/t3-args ] && exit 0
+  [ -s /test/t3-args ] && [ -e /test/codex-path ] && exit 0
   sleep 0.01
 done
 exit 1
@@ -54,6 +55,9 @@ exit 1
       expect(result.stdout).not.toContain('Token: synthetic')
       expect(readFileSync(join(testDir, 't3-args'), 'utf8')).toBe(
         'start\n--no-browser\n--host\n127.0.0.1\n--port\n3773\n/app\n',
+      )
+      expect(readFileSync(join(testDir, 'codex-path'), 'utf8')).toBe(
+        '/app/node_modules/.bin/codex\n',
       )
     } finally {
       rmSync(testDir, { recursive: true, force: true })

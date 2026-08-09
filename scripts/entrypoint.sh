@@ -190,7 +190,7 @@ fi
 
 if [ "${ENABLE_T3:-0}" = "1" ]; then
   echo "Starting T3 Code on ${T3_HOST:-0.0.0.0}:${T3_PORT:-3773}..."
-  t3 serve --host "${T3_HOST:-0.0.0.0}" --port "${T3_PORT:-3773}" "${T3_WORKSPACE:-/app}" &
+  t3 start --no-browser --host "${T3_HOST:-0.0.0.0}" --port "${T3_PORT:-3773}" "${T3_WORKSPACE:-/app}" &
   T3_PID=$!
 fi
 
